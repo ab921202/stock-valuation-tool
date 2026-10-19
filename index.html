@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智慧股票估值小工具 | Smart Valuation Calculator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    input[type=range]::-webkit-slider-thumb {
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #2563eb;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -5px;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 8px;
+      cursor: pointer;
+      background: #e2e8f0;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-blue-200">
+          📈
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-slate-900">智慧股票估值小工具</h1>
+          <p class="text-xs text-slate-500">本益比估值 × 股利折現模型 (DDM) × 安全邊際分析</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+          ● 即時動態運算
+        </span>
+        <button onclick="toggleModal('specModal')" class="text-xs text-blue-600 hover:text-blue-800 hover:underline px-2 py-1 font-medium">
+          查看規格說明書 📄
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl mx-auto px-4 py-8 flex-1 w-full space-y-6">
+
+    <!-- Preset Stocks Quick Selection -->
+    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <span class="text-xs font-bold text-slate-500 tracking-wider uppercase flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+          一鍵載入經典範例股票
+        </span>
+        <div class="flex flex-wrap gap-2" id="presetButtonsContainer">
+          <!-- Presets dynamically inserted or static -->
+          <button onclick="loadPreset('2330')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200">
+            台積電 (2330)
+          </button>
+          <button onclick="loadPreset('AAPL')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200">
+            蘋果 (AAPL)
+          </button>
+          <button onclick="loadPreset('2412')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200">
+            中華電 (2412)
+          </button>
+          <button onclick="loadPreset('KO')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition border border-slate-200">
+            可口可樂 (KO)
+          </button>
+          <button onclick="resetDefaults()" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 transition">
+            重設自訂
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Valuation Grid: Inputs vs Results -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT: Input Parameters (5 Cols) -->
+      <div class="lg:col-span-5 space-y-6">
+        
+        <!-- Model Selection Tab -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h2 class="font-bold text-slate-900 text-base flex items-center gap-2">
+              <span>⚙️</span> 估值模型選擇
+            </h2>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl">
+            <button id="btnTabPE" onclick="switchModel('PE')" class="py-2 text-xs font-bold rounded-lg transition shadow-sm bg-white text-blue-600">
+              📊 本益比估值法 (P/E)
+            </button>
+            <button id="btnTabDDM" onclick="switchModel('DDM')" class="py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900">
+              💰 股利折現法 (DDM)
+            </button>
+          </div>
+
+          <!-- Section: Current Price Input -->
+          <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-100">
+            <label class="block text-xs font-bold text-blue-900 mb-1 flex items-center justify-between">
+              <span>目前市場成交價 (Current Price)</span>
+              <span class="text-[11px] font-normal text-blue-600">必填，評估溢折價基準</span>
+            </label>
+            <div class="relative mt-1">
+              <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 font-bold">$</span>
+              <input type="number" id="inpCurrentPrice" value="950" step="0.5" min="0" oninput="calculateAll()"
+                class="w-full pl-8 pr-4 py-2.5 bg-white border border-blue-200 rounded-lg text-lg font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            </div>
+          </div>
+
+          <!-- P/E Model Input Fields -->
+          <div id="sectionPE" class="space-y-4">
+            <div class="space-y-2">
+              <div class="flex justify-between items-center text-xs">
+                <label for="inpEPS" class="font-semibold text-slate-700">近四季每股盈餘 (EPS)</label>
+                <span class="font-mono text-slate-500 font-bold text-sm" id="valEPS">$45.0</span>
+              </div>
+              <input type="range" id="rangeEPS" min="1" max="150" step="0.5" value="45" oninput="syncVal('EPS', this.value); calculateAll()" class="w-full">
+              <div class="flex justify-between text-[10px] text-slate-400">
+                <span>$1</span>
+                <span>$75</span>
+                <span>$150</span>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex justify-between items-center text-xs">
+                <label for="inpGrowth" class="font-semibold text-slate-700">預期未來年成長率 (%)</label>
+                <span class="font-mono text-slate-500 font-bold text-sm" id="valGrowth">12%</span>
+              </div>
+              <input type="range" id="rangeGrowth" min="-20" max="50" step="1" value="12" oninput="syncVal('Growth', this.value); calculateAll()" class="w-full">
+              <div class="flex justify-between text-[10px] text-slate-400">
+                <span>-20%</span>
+                <span>15%</span>
+                <span>50%</span>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex justify-between items-center text-xs">
+                <label for="inpTargetPE" class="font-semibold text-slate-700">合理平均本益比 (Fair P/E)</label>
+                <span class="font-mono text-slate-500 font-bold text-sm" id="valTargetPE">22.0x</span>
+              </div>
+              <input type="range" id="rangeTargetPE" min="5" max="60" step="0.5" value="22" oninput="syncVal('TargetPE', this.value); calculateAll()" class="w-full">
+              <div class="flex justify-between text-[10px] text-slate-400">
+                <span>5x</span>
+                <span>30x</span>
+                <span>60x</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- DDM Model Input Fields (Hidden by default) -->
+          <div id="sectionDDM" class="space-y-4 hidden">
+            <div class="space-y-2">
+              <div class="flex justify-between items-center text-xs">
+                <label class="font-semibold text-slate-700">最新每股股利 (DPS)</label>
+                <span class="font-mono text-slate-500 font-bold text-sm" id="valDividend">$4.8</span>
+              </div>
+              <input type="range" id="rangeDividend" min="0.5" max="30" step="0.1" value="4.8" oninput="syncVal('Dividend', this.value); calculateAll()" class="w-full">
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex justify-between items-center text-xs">
+                <label class="font-semibold text-slate-700">股利長期年成長率 (g %)</label>
+                <span class="font-mono text-slate-500 font-bold text-sm" id="valDivGrowth">3.5%</span>
+              </div>
+              <input type="range" id="rangeDivGrowth" min="0" max="15" step="0.1" value="3.5" oninput="syncVal('DivGrowth', this.value); calculateAll()" class="w-full">
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex justify-between items-center text-xs">
+                <label class="font-semibold text-slate-700">投資人要求報酬率 (Discount Rate r %)</label>
+                <span class="font-mono text-slate-500 font-bold text-sm" id="valDiscountRate">7.5%</span>
+              </div>
+              <input type="range" id="rangeDiscountRate" min="4" max="20" step="0.1" value="7.5" oninput="syncVal('DiscountRate', this.value); calculateAll()" class="w-full">
+              <p class="text-[11px] text-amber-600 bg-amber-50 p-2 rounded">
+                ⚠️ 注意：要求報酬率 (r) 必須大於股利成長率 (g)，模型方可收斂。
+              </p>
+            </div>
+          </div>
+
+          <!-- Safe Margin Setting -->
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span class="text-slate-500">安全邊際區間設定</span>
+            <span class="font-semibold text-slate-700">±15% (便宜 / 昂貴)</span>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Visual Dashboard & Results (7 Cols) -->
+      <div class="lg:col-span-7 space-y-6">
+
+        <!-- Top Status Alert Banner -->
+        <div id="statusBanner" class="p-4 rounded-2xl border transition-all duration-300 flex items-center gap-4 bg-emerald-50 border-emerald-200 text-emerald-900">
+          <div id="statusIcon" class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold bg-emerald-500 text-white shadow">
+            💎
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <span id="statusTag" class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-200/80 text-emerald-800">
+                目前處於便宜價
+              </span>
+              <span id="statusMargin" class="text-xs font-mono font-bold text-emerald-700">
+                安全邊際 +18.5%
+              </span>
+            </div>
+            <p id="statusDesc" class="text-xs text-slate-600 mt-1">
+              現行股價低於計算出之合理價值，具備良好的投資安全邊際。
+            </p>
+          </div>
+        </div>
+
+        <!-- 3 Core Valuation Cards -->
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center relative overflow-hidden">
+            <div class="absolute top-0 inset-x-0 h-1 bg-emerald-400"></div>
+            <span class="text-[11px] font-bold text-emerald-700">🟢 便宜價 (安全價)</span>
+            <div class="mt-2 text-xl md:text-2xl font-black text-slate-900 font-mono" id="cardCheapPrice">$0</div>
+            <span class="text-[10px] text-slate-400">合理價 × 85%</span>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-blue-200 bg-blue-50/20 shadow-sm text-center relative overflow-hidden ring-2 ring-blue-500/20">
+            <div class="absolute top-0 inset-x-0 h-1 bg-blue-500"></div>
+            <span class="text-[11px] font-bold text-blue-700">🔵 合理估值 (Fair)</span>
+            <div class="mt-2 text-xl md:text-2xl font-black text-blue-700 font-mono" id="cardFairPrice">$0</div>
+            <span class="text-[10px] text-slate-400" id="cardModelName">本益比估值基準</span>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center relative overflow-hidden">
+            <div class="absolute top-0 inset-x-0 h-1 bg-rose-400"></div>
+            <span class="text-[11px] font-bold text-rose-700">🔴 昂貴價 (風險價)</span>
+            <div class="mt-2 text-xl md:text-2xl font-black text-slate-900 font-mono" id="cardExpensivePrice">$0</div>
+            <span class="text-[10px] text-slate-400">合理價 × 115%</span>
+          </div>
+        </div>
+
+        <!-- Spectrum / Gauge Visual Meter -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+              <span>🎯</span> 股價估值光譜指針 (Valuation Spectrum)
+            </h3>
+            <span class="text-xs text-slate-500">
+              目前市價：<strong class="text-slate-900 font-mono text-sm" id="meterCurrentLabel">$950</strong>
+            </span>
+          </div>
+
+          <!-- The Range Bar -->
+          <div class="relative pt-6 pb-2">
+            <!-- Pin Indicator -->
+            <div id="spectrumPin" class="absolute top-0 transition-all duration-300 transform -translate-x-1/2 flex flex-col items-center z-10" style="left: 50%;">
+              <span id="pinText" class="px-2 py-0.5 rounded text-[10px] font-bold text-white bg-slate-900 shadow">
+                $950
+              </span>
+              <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-slate-900"></div>
+            </div>
+
+            <!-- Gradient Track -->
+            <div class="h-6 w-full rounded-full flex overflow-hidden shadow-inner border border-slate-200 text-[10px] font-bold text-white text-center leading-6">
+              <div class="w-1/3 bg-emerald-500 flex items-center justify-center">便宜區間</div>
+              <div class="w-1/3 bg-blue-500 flex items-center justify-center">合理區間</div>
+              <div class="w-1/3 bg-rose-500 flex items-center justify-center">昂貴區間</div>
+            </div>
+
+            <!-- Labels below track -->
+            <div class="flex justify-between text-[11px] text-slate-500 mt-2 font-mono">
+              <span id="labelBarMin">$0</span>
+              <span id="labelBarCheap" class="text-emerald-700 font-bold">$0</span>
+              <span id="labelBarFair" class="text-blue-700 font-bold">$0</span>
+              <span id="labelBarExp" class="text-rose-700 font-bold">$0</span>
+              <span id="labelBarMax">$0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Chart: Comparison Bar Chart -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+            <span>📊</span> 市價與估值階梯長條對比
+          </h3>
+          <div class="h-56 w-full">
+            <canvas id="valuationChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Educational & Formula Explanation Accordion -->
+    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+        <span>💡</span> 估值模型邏輯與計算公式說明
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 leading-relaxed">
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+          <h4 class="font-bold text-slate-900 mb-1.5 flex items-center gap-1">
+            <span class="text-blue-600 font-mono">01.</span> 本益比估值法 (P/E Ratio Valuation)
+          </h4>
+          <p>
+            合理價 = 最新每股盈餘 (EPS) × (1 + 預期年成長率 g) × 目標平均本益比。<br>
+            <strong>適用對象：</strong>具備持續獲利能力且具成長潛力之一般企業（如科技股、消費股）。
+          </p>
+        </div>
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+          <h4 class="font-bold text-slate-900 mb-1.5 flex items-center gap-1">
+            <span class="text-blue-600 font-mono">02.</span> 高登股利折現法 (Gordon Growth DDM)
+          </h4>
+          <p>
+            合理價 = 次期預期每股股利 / (要求報酬率 r - 股利年成長率 g)。<br>
+            <strong>適用對象：</strong>現金流穩定、股息政策成熟且長期配息之定存股（如電信、公用事業、金融股）。
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+    <p>智慧股票估值小工具 · Vibe Coding 實作專案</p>
+    <p class="mt-1 text-slate-400">免責聲明：本工具提供之數據與計算結果僅供學術練習與參考，不構成任何實質投資建議。</p>
+  </footer>
+
+  <!-- Modal: Specification Document -->
+  <div id="specModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white max-w-2xl w-full rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+      <div class="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+        <h3 class="font-bold text-slate-900 text-lg flex items-center gap-2">
+          <span>📄</span> 專案規格書 (Specifications)
+        </h3>
+        <button onclick="toggleModal('specModal')" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+      </div>
+      <div class="p-6 overflow-y-auto space-y-4 text-xs text-slate-700 leading-relaxed font-sans">
+        <div class="border-b pb-3">
+          <h4 class="font-bold text-slate-900 text-sm mb-1">一、 專案主題</h4>
+          <p>股票估值小工具（本益比 / 股利折現雙模型分析與安全邊際視覺化）。</p>
+        </div>
+        <div class="border-b pb-3">
+          <h4 class="font-bold text-slate-900 text-sm mb-1">二、 核心互動與玩法</h4>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><strong>雙模式估值模型切換</strong>：支援本益比河流估值法（P/E）與高登股利折現模型（DDM）。</li>
+            <li><strong>動態輸入連動</strong>：即時輸入/滑桿控制 EPS、成長率、目標本益比、每股股利與折現率。</li>
+            <li><strong>經典預設股票</strong>：提供台積電 (2330)、蘋果 (AAPL)、中華電 (2412)、可口可樂 (KO) 參數快速代入。</li>
+            <li><strong>高估/低估視覺化光譜</strong>：精確計算便宜價 (85%)、合理價 (100%)、昂貴價 (115%)，並由指針標示目前市價位置。</li>
+            <li><strong>階梯對比圖表</strong>：使用 Chart.js 直觀展示價格位階。</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-bold text-slate-900 text-sm mb-1">三、 技術架構</h4>
+          <p>單一獨立檔案 index.html，無伺服器相依，支援 GitHub Pages 一鍵靜態託管。</p>
+        </div>
+      </div>
+      <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+        <button onclick="toggleModal('specModal')" class="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700">
+          關閉視窗
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    // State
+    let currentModel = 'PE'; // 'PE' or 'DDM'
+    let myChart = null;
+
+    // Preset Data
+    const presets = {
+      '2330': { name: '台積電 (2330)', model: 'PE', price: 1040, eps: 45.0, growth: 18, targetPE: 24.0 },
+      'AAPL': { name: '蘋果 (AAPL)', model: 'PE', price: 235, eps: 6.8, growth: 10, targetPE: 30.0 },
+      '2412': { name: '中華電 (2412)', model: 'DDM', price: 122, dps: 4.8, g: 2.5, r: 5.5 },
+      'KO': { name: '可口可樂 (KO)', model: 'DDM', price: 68, dps: 1.95, g: 4.5, r: 7.0 }
+    };
+
+    function toggleModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden');
+    }
+
+    function switchModel(mode) {
+      currentModel = mode;
+      const btnPE = document.getElementById('btnTabPE');
+      const btnDDM = document.getElementById('btnTabDDM');
+      const secPE = document.getElementById('sectionPE');
+      const secDDM = document.getElementById('sectionDDM');
+
+      if (mode === 'PE') {
+        btnPE.className = 'py-2 text-xs font-bold rounded-lg transition shadow-sm bg-white text-blue-600';
+        btnDDM.className = 'py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900';
+        secPE.classList.remove('hidden');
+        secDDM.classList.add('hidden');
+        document.getElementById('cardModelName').innerText = '本益比估值基準';
+      } else {
+        btnDDM.className = 'py-2 text-xs font-bold rounded-lg transition shadow-sm bg-white text-blue-600';
+        btnPE.className = 'py-2 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900';
+        secDDM.classList.remove('hidden');
+        secPE.classList.add('hidden');
+        document.getElementById('cardModelName').innerText = '股利折現模型基準';
+      }
+      calculateAll();
+    }
+
+    function syncVal(key, val) {
+      if (key === 'EPS') document.getElementById('valEPS').innerText = `$${parseFloat(val).toFixed(1)}`;
+      if (key === 'Growth') document.getElementById('valGrowth').innerText = `${val}%`;
+      if (key === 'TargetPE') document.getElementById('valTargetPE').innerText = `${parseFloat(val).toFixed(1)}x`;
+      if (key === 'Dividend') document.getElementById('valDividend').innerText = `$${parseFloat(val).toFixed(1)}`;
+      if (key === 'DivGrowth') document.getElementById('valDivGrowth').innerText = `${parseFloat(val).toFixed(1)}%`;
+      if (key === 'DiscountRate') document.getElementById('valDiscountRate').innerText = `${parseFloat(val).toFixed(1)}%`;
+    }
+
+    function loadPreset(code) {
+      const data = presets[code];
+      if (!data) return;
+
+      document.getElementById('inpCurrentPrice').value = data.price;
+
+      if (data.model === 'PE') {
+        switchModel('PE');
+        document.getElementById('rangeEPS').value = data.eps;
+        syncVal('EPS', data.eps);
+        document.getElementById('rangeGrowth').value = data.growth;
+        syncVal('Growth', data.growth);
+        document.getElementById('rangeTargetPE').value = data.targetPE;
+        syncVal('TargetPE', data.targetPE);
+      } else {
+        switchModel('DDM');
+        document.getElementById('rangeDividend').value = data.dps;
+        syncVal('Dividend', data.dps);
+        document.getElementById('rangeDivGrowth').value = data.g;
+        syncVal('DivGrowth', data.g);
+        document.getElementById('rangeDiscountRate').value = data.r;
+        syncVal('DiscountRate', data.r);
+      }
+      calculateAll();
+    }
+
+    function resetDefaults() {
+      document.getElementById('inpCurrentPrice').value = 950;
+      switchModel('PE');
+      document.getElementById('rangeEPS').value = 45;
+      syncVal('EPS', 45);
+      document.getElementById('rangeGrowth').value = 12;
+      syncVal('Growth', 12);
+      document.getElementById('rangeTargetPE').value = 22;
+      syncVal('TargetPE', 22);
+      calculateAll();
+    }
+
+    function calculateAll() {
+      const currentPrice = parseFloat(document.getElementById('inpCurrentPrice').value) || 0;
+      let fairPrice = 0;
+
+      if (currentModel === 'PE') {
+        const eps = parseFloat(document.getElementById('rangeEPS').value) || 0;
+        const growth = parseFloat(document.getElementById('rangeGrowth').value) || 0;
+        const targetPE = parseFloat(document.getElementById('rangeTargetPE').value) || 0;
+        // Fair value = EPS * (1 + growth/100) * targetPE
+        fairPrice = eps * (1 + (growth / 100)) * targetPE;
+      } else {
+        const dps = parseFloat(document.getElementById('rangeDividend').value) || 0;
+        const g = parseFloat(document.getElementById('rangeDivGrowth').value) / 100 || 0;
+        const r = parseFloat(document.getElementById('rangeDiscountRate').value) / 100 || 0;
+
+        if (r <= g) {
+          fairPrice = 0; // Invalid condition for Gordon DDM
+        } else {
+          // DDM: P = D1 / (r - g) = D0 * (1 + g) / (r - g)
+          fairPrice = (dps * (1 + g)) / (r - g);
+        }
+      }
+
+      fairPrice = Math.max(0, fairPrice);
+      const cheapPrice = fairPrice * 0.85;
+      const expensivePrice = fairPrice * 1.15;
+
+      // Update Cards
+      document.getElementById('cardCheapPrice').innerText = `$${cheapPrice.toFixed(1)}`;
+      document.getElementById('cardFairPrice').innerText = `$${fairPrice.toFixed(1)}`;
+      document.getElementById('cardExpensivePrice').innerText = `$${expensivePrice.toFixed(1)}`;
+      document.getElementById('meterCurrentLabel').innerText = `$${currentPrice.toFixed(1)}`;
+
+      // Status Assessment
+      updateStatusBanner(currentPrice, cheapPrice, fairPrice, expensivePrice);
+
+      // Spectrum Pointer position
+      updateSpectrum(currentPrice, cheapPrice, fairPrice, expensivePrice);
+
+      // Render or Update Chart
+      renderChart(currentPrice, cheapPrice, fairPrice, expensivePrice);
+    }
+
+    function updateStatusBanner(price, cheap, fair, exp) {
+      const banner = document.getElementById('statusBanner');
+      const icon = document.getElementById('statusIcon');
+      const tag = document.getElementById('statusTag');
+      const margin = document.getElementById('statusMargin');
+      const desc = document.getElementById('statusDesc');
+
+      if (fair === 0) {
+        banner.className = 'p-4 rounded-2xl border flex items-center gap-4 bg-slate-100 border-slate-300 text-slate-800';
+        icon.className = 'w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold bg-slate-400 text-white shadow';
+        icon.innerText = '⚠️';
+        tag.className = 'text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-800';
+        tag.innerText = '參數異常';
+        margin.innerText = '';
+        desc.innerText = '高登模型要求報酬率 (r) 必須大於成長率 (g)，請調整數值。';
+        return;
+      }
+
+      const diffPct = ((price - fair) / fair) * 100;
+      const marginOfSafety = ((fair - price) / fair) * 100;
+
+      if (price <= cheap) {
+        // Deep value / Cheap
+        banner.className = 'p-4 rounded-2xl border flex items-center gap-4 bg-emerald-50 border-emerald-200 text-emerald-900 transition-all';
+        icon.className = 'w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold bg-emerald-500 text-white shadow';
+        icon.innerText = '💎';
+        tag.className = 'text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-200/80 text-emerald-800';
+        tag.innerText = '處於便宜價區間 (強力買進)';
+        margin.className = 'text-xs font-mono font-bold text-emerald-700';
+        margin.innerText = `安全邊際 +${marginOfSafety.toFixed(1)}%`;
+        desc.innerText = '現行市價明顯低於安全邊際價，具備良好的投資吸引力與下檔保護空間。';
+      } else if (price <= exp) {
+        // Fair range
+        banner.className = 'p-4 rounded-2xl border flex items-center gap-4 bg-blue-50 border-blue-200 text-blue-900 transition-all';
+        icon.className = 'w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold bg-blue-500 text-white shadow';
+        icon.innerText = '⚖️';
+        tag.className = 'text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-200/80 text-blue-800';
+        tag.innerText = '處於合理估值區間';
+        margin.className = 'text-xs font-mono font-bold text-blue-700';
+        margin.innerText = diffPct >= 0 ? `溢價 +${diffPct.toFixed(1)}%` : `折價 ${diffPct.toFixed(1)}%`;
+        desc.innerText = '現行市價貼近企業內在價值，適合定期定額或耐心觀察產業動能。';
+      } else {
+        // Expensive
+        banner.className = 'p-4 rounded-2xl border flex items-center gap-4 bg-rose-50 border-rose-200 text-rose-900 transition-all';
+        icon.className = 'w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold bg-rose-500 text-white shadow';
+        icon.innerText = '🔥';
+        tag.className = 'text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-200/80 text-rose-800';
+        tag.innerText = '處於偏高/昂貴價區間';
+        margin.className = 'text-xs font-mono font-bold text-rose-700';
+        margin.innerText = `超額溢價 +${diffPct.toFixed(1)}%`;
+        desc.innerText = '股價已透支未來成長預期，評價偏高，追高風險較大，建議審慎評估。';
+      }
+    }
+
+    function updateSpectrum(price, cheap, fair, exp) {
+      const pin = document.getElementById('spectrumPin');
+      const pinText = document.getElementById('pinText');
+      pinText.innerText = `現價 $${price.toFixed(1)}`;
+
+      // Boundaries: 0 to 1.5 * exp
+      const minVal = Math.max(0, fair * 0.5);
+      const maxVal = fair * 1.5;
+
+      document.getElementById('labelBarMin').innerText = `$${minVal.toFixed(0)}`;
+      document.getElementById('labelBarCheap').innerText = `$${cheap.toFixed(0)}`;
+      document.getElementById('labelBarFair').innerText = `$${fair.toFixed(0)}`;
+      document.getElementById('labelBarExp').innerText = `$${exp.toFixed(0)}`;
+      document.getElementById('labelBarMax').innerText = `$${maxVal.toFixed(0)}`;
+
+      if (maxVal <= minVal) return;
+
+      let pct = ((price - minVal) / (maxVal - minVal)) * 100;
+      pct = Math.max(2, Math.min(98, pct)); // clamp
+      pin.style.left = `${pct}%`;
+    }
+
+    function renderChart(price, cheap, fair, exp) {
+      const ctx = document.getElementById('valuationChart').getContext('2d');
+
+      const dataValues = [cheap, fair, exp, price];
+      const backgroundColors = [
+        'rgba(16, 185, 129, 0.75)', // Green
+        'rgba(59, 130, 246, 0.75)', // Blue
+        'rgba(244, 63, 94, 0.75)',  // Rose
+        'rgba(15, 23, 42, 0.9)'     // Dark Navy for current price
+      ];
+
+      if (myChart) {
+        myChart.data.datasets[0].data = dataValues;
+        myChart.update();
+        return;
+      }
+
+      myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['便宜價 (安全)', '合理估值 (內在)', '昂貴價 (風險)', '目前市價'],
+          datasets: [{
+            label: '價格位階 (元)',
+            data: dataValues,
+            backgroundColor: backgroundColors,
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return ` 金額: $${context.raw.toFixed(1)} 元`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: '#f1f5f9' },
+              ticks: { font: { size: 11 } }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 12, weight: 'bold' } }
+            }
+          }
+        }
+      });
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      calculateAll();
+    });
+  </script>
+</body>
+</html>
